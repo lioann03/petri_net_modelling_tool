@@ -1,0 +1,33 @@
+
+incomingbond(P,T,Q1,Q2) :- incomingbond(P,T,Q2,Q1), trans(T), place(P), token(Q1), token(Q2).
+outcomingbond(T,P,Q1,Q2) :- outcomingbond(T,P,Q2,Q1), trans(T), place(P), token(Q1), token(Q2).
+
+% 1)Transitions do not erase tokens
+wellf1_trans_tok(T,Q1) :- incoming(PT,T,Q1), outcoming(T,TP,Q1), token(Q1), trans(T), place(PT), place(TP).
+wellf1_trans_tok(T,Q1) :- incoming(PT,T,Q1), outcomingbond(T,TP,Q1,Q2), token(Q1), token(Q2), trans(T), place(PT), place(TP).
+wellf1_trans_tok(T,Q1) :- incomingbond(PT,T,Q1,Q2), outcomingbond(T,TP,Q1,Q3), token(Q1), token(Q2), token(Q3), trans(T), place(PT), place(TP).
+notwellf1_trans(T) :- not wellf1_trans_tok(T,Q1),incoming(PT,T,Q1), trans(T), token(Q1), place(PT) .
+notwellf1_trans(T) :- not wellf1_trans_tok(T,Q1),incomingbond(PT,T,Q1,Q2), trans(T), token(Q1), token(Q2), place(PT) .
+notwellf1_trans(T) :- not wellf1_trans_tok(T,Q1), outcomingbond(T,TP,Q1,Q2), trans(T), token(Q1), token(Q2), place(TP) .
+notwellf1_trans(T) :- not wellf1_trans_tok(T,Q1),outcoming(T,TP,Q1), trans(T), token(Q1), place(TP) .
+wellf1(T) :- not notwellf1_trans(T), trans(T).
+
+
+% 2)Bonds cannot be broken or erased
+wellf2_trans_bond(T,Q1,Q2) :- incomingbond(PT,T,Q1,Q2), outcomingbond(T,TP,Q1,Q2), token(Q1), token(Q2), trans(T), place(PT), place(TP).
+notwellf2_trans(T) :- not wellf2_trans_bond(T,Q1,Q2), incomingbond(PT,T,Q1,Q2), trans(T), token(Q1), token(Q2), place(PT) .
+wellf2(T) :- not notwellf2_trans(T), trans(T).
+
+% 3) Tokens/bonds cannot be cloned to more than one outgoing places.
+notwellf3(T) :- outcoming(T,TP1,Q1), outcoming(T,TP2,Q1), TP1!=TP2, trans(T), place(TP1), place(TP2), token(Q1).
+notwellf3(T) :- outcomingbond(T,TP1,Q1,Q2), outcoming(T,TP2,Q1), TP1!=TP2, trans(T), place(TP1), place(TP2), token(Q1), token(Q2).
+notwellf3(T) :- outcomingbond(T,TP1,Q1,Q2), outcomingbond(T,TP2,Q1,Q3), TP1!=TP2, trans(T), place(TP1), place(TP2), token(Q1), token(Q2), token(Q3).
+wellf3(T) :- trans(T), not notwellf3(T).
+
+wellf(T) :- trans(T), wellf1(T), wellf2(T), wellf3(T).
+%:- not wellf(T), trans(T).
+
+%#show wellf/1.
+%#show notwellf1_trans/1.
+%#show notwellf2_trans/1.
+%#show notwellf3/1.

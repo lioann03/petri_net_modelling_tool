@@ -1,0 +1,135 @@
+
+
+timestep(0).
+
+onincoming(P,T,Q) :- incoming(P,T,Q), token(Q), place(P), trans(T).
+onincoming(P,T,Q1) :- incomingbond(P,T,Q1,Q2), token(Q1), token(Q2), trans(T), place(P).
+onincoming(P,T,Q1) :- incomingbond(P,T,Q2,Q1), token(Q1), token(Q2), trans(T), place(P).
+
+onoutcoming(P,T,Q) :- outcoming(P,T,Q), token(Q), place(P), trans(T).
+onoutcoming(P,T,Q1) :- outcomingbond(P,T,Q1,Q2), token(Q1), token(Q2), trans(T), place(P).
+onoutcoming(P,T,Q1) :- outcomingbond(P,T,Q2,Q1), token(Q1), token(Q2), trans(T), place(P).
+
+% CREATE CONNECTIONS
+placeholdsconnection(P,Q1,Q2,TS) :- placeholdsbond(P,Q1,Q2,TS), token(Q1), token(Q2), timestep(TS), place(P).
+
+placeholdsconnection(P,Q1,Q2,TS) :- placeholdsconnection(P,Q1,Q3,TS), Q1!= Q2, placeholdsconnection(P,Q2,Q3,TS),
+place(P), token(Q1), token(Q2), token(Q3), timestep(TS).
+
+placeholdsconnection(P,Q1,Q2,TS) :- placeholdsconnection(P,Q3,Q1,TS), Q1!= Q2, placeholdsconnection(P,Q3,Q2,TS),
+place(P), token(Q1), token(Q2), token(Q3), timestep(TS).
+
+placeholdsconnection(P,Q1,Q2,TS) :- placeholdsconnection(P,Q1,Q3,TS), Q1!= Q2, placeholdsconnection(P,Q3,Q2,TS),
+place(P), token(Q1), token(Q2), token(Q3), timestep(TS).
+
+
+% CREATE A PREDICATE TO REPRESENT ARCS (for simplicity).
+incomingarc(P,T) :- incoming(P,T,Q), token(Q), place(P), trans(T).
+incomingarc(P,T) :- incomingbond(P,T,Q1,Q2), token(Q1), token(Q2), trans(T), place(P).
+outcomingarc(T,P) :- outcoming(T,P,Q), token(Q), place(P), trans(T).
+outcomingarc(T,P) :- outcomingbond(T,P,Q1,Q2), token(Q1), token(Q2), trans(T), place(P).
+
+% FIRST RULE OF DEFINITION
+bonded(P,Q1,TS) :- placeholdsbond(P,Q1,Q2,TS), token(Q1), token(Q2), timestep(T), place(P). 
+bonded(P,Q1,TS) :- placeholdsbond(P,Q2,Q1,TS), token(Q1), token(Q2), timestep(T), place(P).
+
+not_enabled(T,TS) :- incoming(PT,T,Q1), not placeholds(PT,Q1,TS), not bonded(PT,Q1,TS),
+token(Q1), token(Q2), place(PT), trans(T), timestep(TS).
+
+% SECOND RULE OF DEFINITION
+
+
+not_enabled(T,TS) :- incomingbond(PT,T,Q1,Q2), not placeholdsbond(PT,Q1,Q2,TS), not placeholdsbond(PT,Q2,Q1,TS),
+token(Q1), token(Q2), place(PT), trans(T), timestep(TS).
+
+% THIRD RULE OF DEFINITION
+
+not_enabled(T,TS) :- placeholdsconnection(PT,Q1,Q2,TS), Q1!=Q2, incomingarc(PT,T),
+                outcoming(T,TP1,Q1), outcoming(T,TP2,Q2), TP1!=TP2, token(Q1), token(Q2), timestep(T), place(P).
+
+not_enabled(T,TS) :- placeholdsconnection(PT,Q1,Q2,TS), Q1!=Q2, incomingarc(PT,T),
+                onoutcoming(T,TP1,Q1), onoutcoming(T,TP2,Q2), TP1!=TP2, place(PT), place(TP1), place(TP2), 
+                token(Q1), token(Q2), trans(T), timestep(TS).
+
+
+% FORTH RULE OF DEFINITION
+not_enabled(T,TS) :- placeholdsbond(PT,Q1,Q2,TS), outcomingbond(T,TP,Q1,Q2),
+not incomingbond(PT,T,Q1,Q2), not incomingbond(PT,T,Q2,Q1), place(PT), place(TP), trans(T), token(Q1), token(Q2).
+
+not_enabled(T,TS) :- placeholdsbond(PT,Q2,Q1,TS), outcomingbond(T,TP,Q1,Q2),
+not incomingbond(PT,T,Q1,Q2), not incomingbond(PT,T,Q2,Q1), place(PT), place(TP), trans(T), token(Q1), token(Q2).
+
+
+enabled(T,TS) :- not not_enabled(T,TS), trans(T), timestep(TS).
+
+%countenabled(N,TS) :- N = #count{T : enabled(T,TS),trans(T)}, timestep(TS).
+
+% TRANSITION FIRING
+{fire(T,TS)}:- enabled(T,TS), trans(T), timestep(TS).
+
+% NOTE: Transitions that need the same resources can't be fired in parallel. Only one of them can be fired.
+:- fire(T1,TS), fire(T2,TS), onincoming(P,T1,Q1), onincoming(P,T2,Q1), T1!=T2, 
+trans(T1), trans(T2), token(Q1), place(P).
+
+:- fire(T1,TS), fire(T2,TS), onincoming(P,T1,Q1), onincoming(P,T2,Q2), placeholdsconnection(P,Q1,Q2,TS), T1!=T2,
+trans(T1), trans(T2), token(Q1), token(Q2), place(P).
+
+
+%countfire(N,TS) :- N = #count{T : fire(T,TS), trans(T)}, timestep(TS).
+
+% At least n tokens must be executed either in a forward or in a reversed fashion.
+%:- countenabled(M,TS), countfire(N,TS), M >= n, n!=N.
+
+
+timestep(TS+1) :- timestep(TS), TS < ts.
+
+used(T,Q1,TS+1) :- fire(T,TS), incoming(P,T,Q1), trans(T), place(P), token(Q1), timestep(TS).
+usedbond(T,Q1,Q2,TS+1) :- fire(T,TS), onincoming(P,T,Q1), placeholdsconnection(P,Q1,Q2,TS), 
+                        trans(T), place(P), token(Q1), token(Q2), timestep(TS).
+usedbond(T,Q1,Q2,TS+1) :- fire(T,TS), onincoming(P,T,Q2), placeholdsconnection(P,Q1,Q2,TS),
+                         trans(T), place(P), token(Q1), token(Q2), timestep(TS).
+usedbond(T,Q1,Q2,TS+1) :- fire(T,TS), onincoming(P,T,Q3), placeholdsconnection(P,Q1,Q2,TS), placeholdsconnection(P,Q1,Q3,TS),
+                         trans(T), place(P), token(Q1), token(Q2), token(Q3), timestep(TS).
+usedbond(T,Q1,Q2,TS+1) :- fire(T,TS), onincoming(P,T,Q3), placeholdsconnection(P,Q1,Q2,TS), placeholdsconnection(P,Q3,Q1,TS),
+                         trans(T), place(P), token(Q1), token(Q2), token(Q3), timestep(TS).
+
+% UPDATE TOKENS' POSITION
+% Move tokens that are needed by a transition and their connected components.
+
+% Keep tokens at their previous timestep places, if they are not needed by a transition (not move/movebond).
+
+keeptoken(Q1,TS) :- placeholds(P,Q1,TS-1), not used(_,Q1,TS), place(P), token(Q1), timestep(TS).
+keepbond(Q1,Q2,TS) :- placeholdsbond(P,Q1,Q2,TS-1), not usedbond(_,Q1,Q2,TS), 
+                    place(P), token(Q1), token(Q2), Q1!=Q2, timestep(TS).
+
+placeholds(P,Q1,TS) :- used(T,Q1,TS), outcoming(T,P,Q1), not bonded(P,Q1,TS), 
+                    trans(T), token(Q1), place(P), timestep(TS).
+
+placeholdsbond(P,Q1,Q2,TS) :- used(T,Q1,TS), used(T,Q2,TS), outcomingbond(T,P,Q1,Q2), 
+                            trans(T), place(P), token(Q1), token(Q2), timestep(TS).
+
+placeholdsbond(P,Q1,Q2,TS) :- usedbond(T,Q1,Q2,TS), onoutcoming(T,P,Q1), trans(T), 
+                            place(P), token(Q1), token(Q2), timestep(TS).
+
+placeholdsbond(P,Q1,Q2,TS) :- usedbond(T,Q1,Q2,TS), onoutcoming(T,P,Q2), 
+                            trans(T), place(P), token(Q1), token(Q2), timestep(TS).
+
+placeholdsbond(P,Q1,Q2,TS) :- usedbond(T,Q1,Q2,TS), onoutcoming(T,P,Q3), placeholdsconnection(PT,Q1,Q3,TS-1), 
+                            trans(T), place(P), place(PT), token(Q1), token(Q2), token(Q3), timestep(TS).
+
+placeholdsbond(P,Q1,Q2,TS) :- usedbond(T,Q1,Q2,TS), onoutcoming(T,P,Q3), placeholdsconnection(PT,Q3,Q1,TS-1),
+                            trans(T), place(P), place(PT), token(Q1), token(Q2), token(Q3), timestep(TS).
+
+placeholds(P,Q1,TS) :- keeptoken(Q1,TS), placeholds(P,Q1,TS-1), token(Q1), place(P), timestep(TS).
+
+placeholdsbond(P,Q1,Q2,TS) :- keepbond(Q1,Q2,TS), placeholdsbond(P,Q1,Q2,TS-1), token(Q1), token(Q2), place(P), timestep(TS).
+
+#show enabled/2.
+#show fire/2.
+
+%#show not_enabled/2.
+%#show placeholds/3.
+%#show placeholdsbond/4.
+%#show placeholdsconnection/4.
+
+

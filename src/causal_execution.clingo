@@ -1,0 +1,129 @@
+%%%% CAUSAL ORDER EXECUTION %%%%
+
+% RECORD NEW HISTORY INSTANCES
+transhistory(T,TS,TS+1) :- fire(T,TS), trans(T), timestep(TS).
+transhistory(T,H,TS+1) :- fire(T,TS), transhistory(T,H,TS), trans(T), timestep(TS), timestep(H).
+transhistory(T,H,TS+1) :- cofire(T,TS), transhistory(T,H,TS), not maxhist(T,H,TS), trans(T), timestep(TS), timestep(H) .
+transhistory(T,H,TS+1) :- transhistory(T,H,TS), not fire(T,TS), not cofire(T,TS), timestep(TS), trans(T), timestep(H). 
+
+% FIND THE MAX HISTORY INSTANCE OF EACH TRANSITION.
+not_maxhist(T,H1,TS) :- transhistory(T,H1,TS), transhistory(T,H2,TS), H2 > H1, 
+                    trans(T), timestep(TS), timestep(H1), timestep(H2).
+maxhist(T,H,TS) :- not not_maxhist(T,H,TS), transhistory(T,H,TS), trans(T), timestep(TS), timestep(H).
+
+
+% FIND ALL CAUSAL DEPENDENCIES
+codependent(T1,H1,T2,H2,TS) :- transhistory(T1,H1,TS), transhistory(T2,H2,TS), H1>H2,
+                            placeholds(P1,Q,H1-1), outcoming(T2,P2,Q), 
+                            trans(T1), trans(T2), timestep(H1), timestep(H2), timestep(TS), place(P1), place(P2),
+                            token(Q).
+
+codependent(T1,H1,T2,H2,TS) :- transhistory(T1,H1,TS), transhistory(T2,H2,TS), H1>H2,
+                            placeholdsbond(P1,Q1,Q2,H1-1), onoutcoming(T2,P2,Q3), placeholdsconnection(P1,Q1,Q3,H1-1),
+                            trans(T1), trans(T2), timestep(H1), timestep(H2), timestep(TS), place(P1), place(P2),
+                            token(Q1), token(Q2), token(Q3).
+codependent(T1,H1,T2,H2,TS) :- transhistory(T1,H1,TS), transhistory(T2,H2,TS), H1>H2,
+                            placeholdsbond(P1,Q1,Q2,H1-1), onoutcoming(T2,P2,Q3), placeholdsconnection(P1,Q3,Q1,H1-1),
+                            trans(T1), trans(T2), timestep(TS), timestep(H1), timestep(H2),place(P1), place(P2),
+                            token(Q1), token(Q2), token(Q3).
+
+codependent(T1,H1,T2,H2,TS) :- transhistory(T1,H1,TS), transhistory(T2,H2,TS), H1>H2,
+                            placeholdsbond(P1,Q1,Q2,H1-1), onoutcoming(T2,P2,Q3), placeholdsconnection(P1,Q2,Q3,H1-1),
+                            trans(T1), trans(T2), timestep(TS), timestep(H1), timestep(H2),place(P1), place(P2),
+                            token(Q1), token(Q2), token(Q3).
+
+codependent(T1,H1,T2,H2,TS) :- transhistory(T1,H1,TS), transhistory(T2,H2,TS), H1>H2,
+                            placeholdsbond(P1,Q1,Q2,H1-1), onoutcoming(T2,P2,Q3), placeholdsconnection(P1,Q3,Q2,H1-1),
+                            trans(T1), trans(T2), timestep(TS), timestep(H1), timestep(H2),place(P1), place(P2),
+                            token(Q1), token(Q2), token(Q3).
+
+% FIND ALL CO-ENABLED TRANSITIONS
+
+not_historyempty(T,TS) :- transhistory(T,H,TS), H < TS, trans(T), timestep(H), timestep(TS).
+% NOTE: I created the following predicate in order to avoid having not in front of not_history... (it's unreadable).
+historyempty(T,TS) :- not not_historyempty(T,TS), trans(T), timestep(TS).
+
+% If a transition's history is empty, then it can't be co enabled.
+not_coenabled(T,TS) :- historyempty(T,TS), trans(T), timestep(TS).
+
+% If a transition's tokens/bonds are not ready in its outcoming places, then the trasnition is not co enabled.
+not_coenabled(T,TS) :- outcoming(T,P,Q), not placeholds(P,Q,TS), not bonded(P,Q,TS), timestep(TS), trans(T), place(P), token(Q).
+not_coenabled(T,TS) :- outcomingbond(T,P,Q1,Q2), not placeholdsbond(P,Q1,Q2,TS), not placeholdsbond(P,Q2,Q1,TS),
+                     timestep(TS), trans(T), place(P), token(Q1), token(Q2).
+
+% If an executed transition, t', causally depends on a trasnition t, then t is not co enabled. 
+not_coenabled(T1,TS) :- codependent(T2,H2,T1,H1,TS), maxhist(T1,H1,TS), T1!=T2, trans(T1), trans(T2), 
+                        timestep(H1), timestep(H2), timestep(TS).
+
+coenabled(T,TS) :- not not_coenabled(T,TS), trans(T), timestep(TS).
+
+% FIRE TRANSITION
+{cofire(T,TS)} :- coenabled(T,TS), timestep(TS), trans(T).
+
+% DISABLE PARALLEL REVERSAL AND FORWARD EXECUTION OF TWO TRANSITIONS IF THE TRANSITIONS NEED COMMON RESOURCES. 
+:- cofire(T1,TS), fire(T2,TS), T1!=T2, outcoming(T1,P,Q), incoming(P,T2,Q), 
+    timestep(TS), trans(T1), trans(T2), place(P), token(Q).
+:- cofire(T1,TS), fire(T2,TS), T1!=T2, onoutcoming(T1,P,Q1), onincoming(P,T2,Q2), placeholdsconnection(P,Q1,Q2,TS),
+    timestep(TS), trans(T1),trans(T2), place(P), token(Q1), token(Q2).
+:- cofire(T1,TS), fire(T2,TS), T1!=T2, onoutcoming(T1,P,Q1), onincoming(P,T2,Q2), placeholdsconnection(P,Q2,Q1,TS),
+    timestep(TS), trans(T1),trans(T2), place(P), token(Q1), token(Q2). 
+:- fire(T,TS), cofire(T,TS), trans(T), timestep(TS).
+
+countcofire(N,TS) :- N = #count{T : cofire(T,TS), trans(T)}, timestep(TS).
+:- countfire(N,TS), countcofire(M,TS), timestep(TS), M + N = 0. 
+
+% FIND ALL THE TOKENS/BONDS THAT ARE NEEDED FOR THE BACKTRACKING.
+coused(Q,TS+1) :- cofire(T,TS), outcoming(T,P,Q), outcomingarc(T,P), timestep(TS), trans(T), place(P), token(Q).
+cousedbond(Q1,Q2,TS+1) :- cofire(T,TS), outcomingbond(T,P,Q1,Q2), timestep(TS), trans(T), place(P), token(Q1), token(Q2).
+cousedbond(Q1,Q2,TS+1) :- cofire(T,TS), onoutcoming(T,P,Q1), placeholdsbond(P,Q1,Q2,TS),
+                        timestep(TS), trans(T), place(P), token(Q1), token(Q2).
+cousedbond(Q1,Q2,TS+1) :- cofire(T,TS), onoutcoming(T,P,Q2), placeholdsbond(P,Q1,Q2,TS),
+                        timestep(TS), trans(T), place(P), token(Q1), token(Q2).
+cousedbond(Q1,Q2,TS+1) :- cofire(T,TS), onoutcoming(T,P,Q3), placeholdsconnection(P,Q1,Q3,TS), placeholdsbond(P,Q1,Q2,TS),
+                        timestep(TS), trans(T), place(P), token(Q1), token(Q2), token(Q3).
+cousedbond(Q1,Q2,TS+1) :- cofire(T,TS), onoutcoming(T,P,Q3), placeholdsconnection(P,Q3,Q1,TS), placeholdsbond(P,Q1,Q2,TS),
+                        timestep(TS), trans(T), place(P), token(Q1), token(Q2), token(Q3).
+
+keeptoken(Q1,TS) :- placeholds(P,Q1,TS-1), not coused(Q1,TS), not used(_,Q1,TS), place(P), token(Q1), timestep(TS).
+keepbond(Q1,Q2,TS) :- placeholdsbond(P,Q1,Q2,TS-1), not cousedbond(Q1,Q2,TS), not usedbond(_,Q1,Q2,TS),
+place(P), token(Q1), token(Q2), Q1!=Q2, timestep(TS).
+
+not_breaks(Q1,Q2,TS) :- cofire(T,TS-1), placeholdsbond(TP,Q1,Q2,TS-1), incomingbond(PT,T,Q1,Q2), 
+                     trans(T), place(PT), place(TP), token(Q1), token(Q2), timestep(TS).
+not_breaks(Q1,Q2,TS) :- cofire(T,TS-1), placeholdsbond(TP,Q1,Q2,TS-1), incomingbond(PT,T,Q2,Q1),
+                     trans(T), place(PT), place(TP), token(Q1), token(Q2), timestep(TS).
+
+breaks(Q1,Q2,TS) :- cofire(T,TS-1), outcomingbond(T,TP,Q1,Q2), placeholdsbond(TP,Q1,Q2,TS-1), 
+                    not not_breaks(Q1,Q2,TS), not not_breaks(Q2,Q1,TS), 
+                    trans(T), place(TP), token(Q1), token(Q2), timestep(TS).
+breaks(Q1,Q2,TS) :- cofire(T,TS-1), outcomingbond(T,TP,Q2,Q1), placeholdsbond(TP,Q1,Q2,TS-1), 
+not not_breaks(Q1,Q2,TS), not not_breaks(Q2,Q1,TS), trans(T), place(TP), token(Q1), token(Q2), timestep(TS).
+
+
+placeholds(P,Q1,TS) :- keeptoken(Q1,TS), placeholds(P,Q1,TS-1), timestep(TS), place(P), token(Q1).
+placeholdsbond(P,Q1,Q2,TS) :- keepbond(Q1,Q2,TS), placeholdsbond(P,Q1,Q2,TS-1), place(TP), token(Q1), token(Q2), timestep(TS).
+
+placeholds(P,Q,TS) :- cofire(T,TS-1), not bonded(P,Q,TS), incoming(P,T,Q), timestep(TS), place(P), token(Q), trans(T).
+
+placeholdsbond(P,Q1,Q2,TS) :- cofire(T,TS-1), not breaks(Q1,Q2,TS), onincoming(P,T,Q1), placeholdsbond(TP,Q1,Q2,TS-1), P!=TP,
+                            trans(T), place(P), place(TP), token(Q1), token(Q2), timestep(TS).
+placeholdsbond(P,Q1,Q2,TS) :- cofire(T,TS-1), not breaks(Q1,Q2,TS), onincoming(P,T,Q2), placeholdsbond(TP,Q1,Q2,TS-1), P!=TP,
+                            trans(T), place(P), place(TP), token(Q1), token(Q2), timestep(TS).
+placeholdsbond(P,Q1,Q2,TS) :- cofire(T,TS-1), not breaks(Q1,Q2,TS), onincoming(P,T,Q3), placeholdsconnection(TP,Q1,Q3,TS-1),
+                              placeholdsbond(TP,Q1,Q2,TS-1), not breaks(Q1,Q3,TS), not breaks(Q3,Q1,TS), 
+                              not breaks(Q2,Q3,TS), not breaks(Q3,Q2,TS), TP!=P, trans(T), place(P), place(TP), 
+                              token(Q1), token(Q2), token(Q3), timestep(TS).
+placeholdsbond(P,Q1,Q2,TS) :- cofire(T,TS-1), not breaks(Q1,Q2,TS), onincoming(P,T,Q3), placeholdsconnection(TP,Q3,Q1,TS-1),
+                              placeholdsbond(TP,Q1,Q2,TS-1), not breaks(Q1,Q3,TS), not breaks(Q3,Q1,TS),
+                              not breaks(Q2,Q3,TS), not breaks(Q3,Q2,TS), TP!=P, 
+                              trans(T), place(P), place(TP), token(Q1), token(Q2), token(Q3), timestep(TS).
+
+
+%#show codependent/5.
+#show fire/2.
+%#show coenabled/2.
+#show cofire/2.
+#show placeholds/3.
+#show placeholdsbond/4.
+%#show keepbond/3.
+%#show cousedbond/3.

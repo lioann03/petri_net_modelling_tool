@@ -1,0 +1,11 @@
+placeholdsbond(P,A,B,0) :- placeholdsbond(P,B,A,0).
+
+% EVERY TOKEN SHOULD ONLY APPEAR ONCE (IN ONE PLACE ONLY).
+% NOTE: Two same tokens can't appear at the same place twice - constrainted by clingo.
+placeholdsbond(P,Q1,Q2,0) :- placeholdsbond(P,Q2,Q1,0), place(P), token(Q1), token(Q2).
+
+invalid_token(Q1) :- placeholds(P1,Q1,0), placeholds(P2,Q1,0), P1 != P2, place(P1), place(P2), token(Q1).
+invalid_token(Q1) :- placeholds(P1,Q1,0), placeholdsbond(P2,Q1,Q2,0), place(P1), place(P2), token(Q1), token(Q2).
+invalid_token(Q1) :- placeholdsbond(P1,Q1,Q2,0), placeholdsbond(P2,Q1,Q3,0), P1!=P2, place(P1), place(P2), token(Q1), token(Q2), token(Q3).
+invalid_token(Q1) :- placeholdsbond(P1,Q1,Q2,0), placeholdsbond(P2,Q1,Q3,0), Q2!=Q3, place(P1), place(P2), token(Q1), token(Q2), token(Q3).
+:- invalid_token(Q1), token(Q1).
