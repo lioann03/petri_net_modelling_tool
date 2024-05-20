@@ -8,22 +8,27 @@ class Component:
         self.places: set[gg.Place] = set([])
         self.arcs: set[gg.Arc] = set([])
         self.tokens: set[gg.Token] = set([])
-        self.placements: dict[gg.Place,list[gg.Token_Or_Bond]] = []
+        self.placements: dict[gg.Place,list[gg.Token_Or_Bond]] = {}
         self.needed_tokens: set[gg.Token] = set([])
         self.needed_bonds: set[gg.Bond] = set([])
         self.out_tokens: set[gg.Token] = set([])
         self.out_bonds: set[gg.Bond] = set([])
+        self.total_trans: int
     
     def get_init_place(self):
         for place in self.places:
-            if place.role == gg.Role.INIT:
+            if place.role == gg.Role.INIT or place.role == gg.Role.INIT_FIN:
                 return place
+        assert False,'Unreachable'
+        return None
             
     def get_final_place(self):
         for place in self.places:
-          if place.role == gg.Role.FIN:
+          if place.role == gg.Role.FIN or place.role == gg.Role.INIT_FIN:
               return place
-          
+        assert False,'Unreachable'
+        return None 
+     
     def print_component(self):
         for t in self.transitions:
             print(f'trans({t.name}).')
@@ -34,15 +39,10 @@ class Component:
         if len(self.tokens) != 0:
             for t in self.tokens:
                 print(f'token({t.name}).')
-
-        if len(self.bonds) != 0:
-            for b in self.bond:
-                print(f'bond({t.name}).')
         
         for a in self.arcs:
             print(f'arc({a.place.name},{a.trans.name},{a.label},{a.type}).')
-        
-        
+          
                           
 
 class ComponentBuilder:
@@ -57,6 +57,7 @@ class ComponentBuilder:
 
     def set_transitions(self,transitions):
         self.component.transitions = set(transitions)
+        self.component.total_trans = len(self.component.transitions)
     
     def set_places(self,places):
         self.component.places = set(places)
@@ -64,11 +65,8 @@ class ComponentBuilder:
     def set_tokens(self,tokens):
         self.component.tokens = set(tokens)
     
-    def set_bonds(self,bonds):
-        self.component.bonds = set(bonds)
-
     def set_placements(self,placements):
-        self.component.placements = placements
+        self.component.placements = dict(placements)
     
     def set_needed_tokens(self,tokens):
         self.component.needed_tokens = set(tokens) 

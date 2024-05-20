@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import NamedTuple, Set, Tuple, Union, List
 import random
 import itertools
@@ -43,47 +44,227 @@ class Arc(NamedTuple):
   trans: Transition
   type: ArcType
 
-
 Comp_Or_Brid = Union[comp.Component,brid.Bridge]   
+
+class Sequence(NamedTuple):
+    comp_brid: List[Tuple[Comp_Or_Brid,int]] = []
+    tokens: List[Token] = []
+    init_tokens: List[Tuple[Token,int]] = []
+    init_bonds: List[Tuple[Bond,int]] = []
+
+@dataclass
+class CountedComp():
+  comp:comp.Component
+  freq:int
+
+@dataclass
+class CountedBrid():
+  brid:brid.Bridge
+  freq:int
 
 class PetriNet:
   def __init__(self):
-    self.tokens: set[Token] = set([])
-    self.bonds: set[Bond] = set([]) 
-    self.placement: dict[Place,list[Token_Or_Bond]] = []
+    #self.tokens: list[str] = []
+    #self.bonds: set[Bond] = set([]) 
+    self.placement: dict[Place,list[Token_Or_Bond]] = {}
     self.total_trans: int
-    self.transitions_used: int
+    self.transitions_used: int = 0
     self.max_degree: int
-    self.initial_place: Place
-    self.components: Union[(comp.Component,int)] = set([])
-    #self.bridges: set[br.Bridge]
-    self.paths: List[List[Comp_Or_Brid]] = []
-
-
+    #self.initial_place: Place
+    self.components: List[CountedComp] = []
+    self.bridges: List[CountedBrid] = []
+    self.seq: list[Sequence] = [] 
+    self.init_comp: comp.Component
+    self.init_brid: list[brid.Bridge] = []
+    
 
 class Petri_Net_Builder():
     def __init__(self):
       self.petri_net = PetriNet()
-      self.petri_net.transitions_used = 0
-      self.pending: deque = []
-    
+      #self.pending: deque = []
+
     def set_total_trans(self,trans):
       self.petri_net.total_trans = trans
     
-    def set_degree(self,max_deg):
+    def set_max_degree(self,max_deg):
       self.petri_net.max_degree = max_deg
+    
+    def set_components(self,comp):
+      for c in comp:
+        countedcomp = CountedComp(c,0)
+        self.petri_net.components.append(countedcomp)
 
+    def set_bridges(self,brid):
+      for b in brid:
+        countedbrid = CountedBrid(b,0) 
+        self.petri_net.bridges.append(countedbrid)
+        
+    def set_seq(self,ind):
+      pass
+    
+    def update_component_frequency(self,comp:CountedComp):
+      assert comp.freq>=0, 'comp.freq<0'
+      comp.freq+=1
+    
+    def update_bridge_frequency(self,brid:CountedBrid):
+      assert brid.freq>=0, 'brid.freq<0'
+      brid.freq+=1
+       
     def get_petri_net(self):
       ret = self.petri_net
       self.reset()
       return ret
+      
+    def create_init_comp(self): 
+      init_place = Place('init_place',Role.INIT)
+      comp_builder = comp.ComponentBuilder()
+      comp_builder.set_name('init')
+      comp_builder.set_places(init_place)
+      self.petri_net.init_comp = comp_builder.component
+
+      #TODO: place init tokens to init comp
+      #for i in range(self.petri_net.max_degree):
+      #  c = self.petri_net.seq[i].comp_brid[0]
+      #  needed_tb = []
+      #  assert type(c[0]) == comp.Component
+      #  needed_tb.append(c[0].tokens)
+      #  for t in c[0].tokens:
+      #    pass
+
+
+    def create_init_bridges(self):
+      for i in range(self.petri_net.max_degree):
+        bridgeb = brid.BridgeBuilder()
+        #print(self.petri_net.seq[i].comp_brid[0][0])
+        assert type(self.petri_net.seq[i].comp_brid[0][0]) == comp.Component
+        c = self.petri_net.seq[i].comp_brid[0]
+        bridgeb.set_start_component(self.petri_net.init_comp)
+        bridgeb.set_end_component(c[0])
+        bridgeb.set_transition(Transition(f'initbrid{i}'))
+        bridgeb.set_arcs()
+        self.petri_net.init_brid.append(bridgeb.bridge)
+      for b in self.petri_net.init_brid:
+        self.petri_net.transitions_used += b.total_trans
+        
+    
+    # find all possible components that can connect with thed init component
+    # must have 1 transition
+    def _possible_starting_comp(self):
+      starting_comp = []
+      for c in self.petri_net.components:
+        if c.comp.total_trans == 1:
+           starting_comp.append(c.comp)
+      return starting_comp
+    
+    def set_init_seq_tokens(self):
+      for i in range(self.petri_net.max_degree):
+        s = self.petri_net.seq[i]
+        assert type(s.comp_brid[0][0]) == comp.Component
+        for t in s.comp_brid[0][0].needed_tokens:
+          s.init_tokens.append((t,0))
+        for b in s.comp_brid[0][0].needed_bonds:
+          s.init_bonds.append((b,0))
+
+    def set_first_comp_in_seq(self):
+      starting_comp = self._possible_starting_comp()
+      for i in range(self.petri_net.max_degree):
+        s=self.petri_net.seq
+        first_of_seq_comp = random.choice(starting_comp)
+        s[i].comp_brid.append((first_of_seq_comp,self.get_freq(first_of_seq_comp)))
+        self.set_freq(first_of_seq_comp)
+
+    def get_freq(self,comp_brid:Comp_Or_Brid):
+      if type(comp_brid) == comp.Component:
+        for c in self.petri_net.components:
+          if(c.comp == comp_brid):
+            return c.freq 
+      if type(comp_brid) == brid.Bridge:
+        for c in self.petri_net.bridges:
+          if(c.brid == comp_brid):
+            return c.freq
+      assert(False), 'unreachable'
+
+    def set_freq(self,comp_brid:Comp_Or_Brid):
+      if type(comp_brid) == comp.Component:
+        for c in self.petri_net.components:
+          if(c.comp == comp_brid):
+            c.freq += 1
+            return None 
+      if type(comp_brid) == brid.Bridge:
+        for c in self.petri_net.bridges:
+          if(c.brid == comp_brid):
+            c.freq += 1
+            return None
+      assert(False), 'unreachable'
+
+    def add_comp_in_seq(self,seq:Sequence):
+      #assert len(self.petri_net.seq) > ind, 'seq out of bounds'
+      for c in self.petri_net.bridges:   
+        comp_brid_list = seq.comp_brid
+        last_comp = comp_brid_list[len(comp_brid_list)-1]
+        assert type(last_comp[0]) == comp.Component, 'last comp in seq not Component'
+        if c.brid.start_component == last_comp[0] and \
+        (c.brid.total_trans + self.petri_net.transitions_used) <= self.petri_net.total_trans:
+          seq.comp_brid.append((c.brid,c.freq))
+          seq.comp_brid.append((c.brid.end_component, self.get_freq(c.brid.end_component)))
+          c.freq += 1
+          self.set_freq(c.brid.end_component)
+          self.petri_net.transitions_used += c.brid.total_trans
+          return True
+      return False
+      #TODO:???
+
+    def add_extra_bridges(self):
+      remaining = self.petri_net.total_trans - self.petri_net.transitions_used
+      assert remaining > 0, 'extra bridges must not be added'
+      for i in range(remaining):
+        rand_seq = random.choice(self.petri_net.seq)
+        end = False
+        while not end: 
+          rand_comp = random.choice(rand_seq.comp_brid)
+          if type(rand_comp[0]) == comp.Component:
+            end = True
+        new_bridge = brid.BridgeBuilder()
+        new_bridge.set_start_component(self.petri_net.init_comp)
+        new_bridge.set_end_component(rand_comp[0])
+        new_bridge.set_transition(Transition(f'extra{i}'))
+        rand_seq.comp_brid.append((new_bridge.bridge,0))
+        self.petri_net.bridges.append(CountedBrid(new_bridge.bridge,0))
+
+    # the first component of each sequence is always c0.
+    def build(self):
+      for i in range(self.petri_net.max_degree):
+        self.petri_net.seq.append(Sequence([],[],[],[]))
+
+      self.set_first_comp_in_seq()
+      self.create_init_comp()
+      self.create_init_bridges()
+      self.set_init_seq_tokens()
+
+      proceed = True
+      while self.petri_net.transitions_used < self.petri_net.total_trans and proceed:  
+        for s in self.petri_net.seq:
+          if not proceed:
+            break
+          proceed = self.add_comp_in_seq(s)
+   
+      #TODO: Check why the loop stopped
+      if self.petri_net.transitions_used < self.petri_net.total_trans and not proceed:
+        #TODO: add extra bridges
+        pass
+      self.print_petri_net()
+    
+    def print_petri_net(self):
+      i=0
+      for s in self.petri_net.seq:
+        for cb in s.comp_brid:
+          if type(cb[0]) == comp.Component:
+            print(f'{i},{cb[0].name}')
+        i+=1
+      
 
     def reset(self):
-       self.petri_net = PetriNet()
-
-   
-
-
+      self.petri_net = PetriNet()
 
 def _produce_rand_bonds(tokens,rand_bonds):
     if(len(tokens) > 1):

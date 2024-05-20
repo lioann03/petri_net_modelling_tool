@@ -2,6 +2,7 @@
 
 import argparse
 import math
+from collections import OrderedDict
 import generator_general as pngen
 import generator_component as gc
 import generator_bridge as gb
@@ -16,17 +17,19 @@ def parse_args():
     parser.add_argument('--max_degree', type=int,nargs=1,help='Max Degree',default=DEF_DEG)
     return vars(parser.parse_args())
 
-def generate_petri_net(ptb,filename,num_trans,max_deg):
-    ptb.set_total_trans(num_trans)
-    ptb.set_degree(max_deg)
  
 def find_existing_tokens(placement):   
     tokens = set()
+    if len(placement) == 0:
+        return tokens
     for tb in placement.values():
-      if type(tb) == tuple:
-        tokens.update(tb)
-      else:
-        tokens.add(tb)
+      for t in tb:
+        if type(t) == tuple:
+          tokens.update(t)
+        else:
+          assert type(t) == pngen.Token
+          tokens.add(t)
+    return tokens
 
 def generate_component(cb,name,p,t,tok,bonds,out_tok,out_bonds,arcs,placement):
     cb.set_name(name)
@@ -41,17 +44,32 @@ def generate_component(cb,name,p,t,tok,bonds,out_tok,out_bonds,arcs,placement):
     cb.set_placements(placement)
     #cb.component.print_component()
 
+def generate_bridge(bb,c1,c2,t):
+   bb.set_start_component(c1)
+   bb.set_end_component(c2)
+   bb.set_transition(t)
+   bb.set_arcs()
 
+def generate_petri_net(pnb,file,bridges,components,total_trans,max_deg):
+   pnb.set_bridges(bridges)
+   pnb.set_components(components)
+   pnb.set_total_trans(total_trans)
+   pnb.set_max_degree(max_deg)
+   pnb.build()
 
 def main():
     args = parse_args()
     filename = args['filename']
     tot_transitions, = args['transitions']
     max_degree, = args['max_degree']
-  
+
+    if tot_transitions < max_degree:
+       print('total transitions must not be less than max degree')
+       return None
     
-    ptb = pngen.Petri_Net_Builder()
-    generate_petri_net(ptb,filename,tot_transitions,max_degree)
+    if tot_transitions < 1 or max_degree < 1:
+       print('total transitions and max degree must be greater than 0')
+       return None 
 
     # first component (0)
     cb0 = gc.ComponentBuilder()
@@ -69,11 +87,11 @@ def main():
     arcs0.add(pngen.Arc(tok0[2],p0[2],t0[0],pngen.ArcType.OUTCOMING))
     arcs0.add(pngen.Arc(tok0[3],p0[2],t0[0],pngen.ArcType.OUTCOMING))
     
-    placement0: dict[pngen.Place,list[pngen.Token_Or_Bond]] = []
-    placement0.append((p0[1],tok0[2]))
-    placement0.append((p0[1],tok0[3]))
+    placement0: dict[pngen.Place,list[pngen.Token_Or_Bond]] = {}
+    placement0.setdefault(p0[1],[]).append(tok0[2])
+    placement0.setdefault(p0[1],[]).append(tok0[3])
 
-    needed_tok0 = tok0
+    needed_tok0 = [tok0[0],tok0[1]]
     out_tok0 = tok0
     generate_component(cb0,0,p0,t0,needed_tok0,[],out_tok0,[],arcs0,placement0)
     
@@ -88,7 +106,7 @@ def main():
     arcs1.add(pngen.Arc(tok1[2],p1[0],t1[2],pngen.ArcType.INCOMING))
     arcs1.add(pngen.Arc(tok1[3],p1[0],t1[2],pngen.ArcType.INCOMING))
     arcs1.add(pngen.Arc((tok1[0],tok1[1]),p1[1],t1[1],pngen.ArcType.OUTCOMING))
-    arcs1.add(pngen.Arc((tok1[0],tok1[1]),p1[1],t1[2],pngen.ArcType.OUTCOMING))
+    arcs1.add(pngen.Arc((tok1[2],tok1[3]),p1[1],t1[2],pngen.ArcType.OUTCOMING))
     arcs1.add(pngen.Arc((tok1[0],tok1[1]),p1[1],t1[0],pngen.ArcType.INCOMING))
     arcs1.add(pngen.Arc((tok1[2],tok1[3]),p1[1],t1[0],pngen.ArcType.INCOMING))
     arcs1.add(pngen.Arc((tok1[0],tok1[1]),p1[0],t1[0],pngen.ArcType.OUTCOMING))
@@ -96,8 +114,8 @@ def main():
 
     needed_tok1 = tok1
     out_bond1 = [(tok1[0],tok1[1]),(tok1[2],tok1[3])]
-    generate_component(cb1,1,p1,t1,needed_tok1,[],[],out_bond1,arcs1,[])
-    cb1.component.print_component()
+    generate_component(cb1,1,p1,t1,needed_tok1,[],[],out_bond1,arcs1,{})
+    #cb1.component.print_component()
 
     cb2 = gc.ComponentBuilder()
     p2 = [pngen.Place('z0',pngen.Role.INIT), pngen.Place('z1',pngen.Role.MID), pngen.Place('z2',pngen.Role.FIN)]
@@ -115,9 +133,9 @@ def main():
     arcs2.add(pngen.Arc(tok2[0],p2[2],t2[0],pngen.ArcType.OUTCOMING))
     arcs2.add(pngen.Arc(tok2[1],p2[2],t2[0],pngen.ArcType.OUTCOMING))
 
-    placement2: dict[pngen.Place,list[pngen.Token_Or_Bond]] = []
-    placement2.append((p2[1],tok0[0]))
-    placement2.append((p2[1],tok0[1]))
+    placement2: dict[pngen.Place,list[pngen.Token_Or_Bond]] = {}
+    placement2.setdefault(p2[1],[]).append(tok0[0])
+    placement2.setdefault(p2[1],[]).append(tok0[1])
 
     needed_tok2 = bond2
     out_tok2 = tok2
@@ -149,9 +167,9 @@ def main():
     arcs3.add(pngen.Arc(bond3[3],p3[3],t3[2],pngen.ArcType.OUTCOMING))
     arcs3.add(pngen.Arc(bond3[4],p3[3],t3[2],pngen.ArcType.OUTCOMING))
 
-    needed_bond3 = {bond3[0],bond3[1],bond3[2]}
+    needed_bond3 = [bond3[0],bond3[1],bond3[2]]
     out_bond3 = bond3
-    generate_component(cb3,3,p3,t3,[],needed_bond3,[],out_bond3,arcs3,[])
+    generate_component(cb3,3,p3,t3,[],needed_bond3,[],out_bond3,arcs3,{})
     #cb3.component.print_component()
 
     cb4 = gc.ComponentBuilder()
@@ -172,15 +190,15 @@ def main():
     arcs4.add(pngen.Arc(bond4[2],p4[0],t4[0],pngen.ArcType.OUTCOMING))
     arcs4.add(pngen.Arc(bond4[3],p4[0],t4[0],pngen.ArcType.OUTCOMING))
     arcs4.add(pngen.Arc(bond4[4],p4[0],t4[0],pngen.ArcType.OUTCOMING))
-    arcs4.add(pngen.Arc(bond4[0],p4[1],t4[0],pngen.ArcType.INCOMING))
-    arcs4.add(pngen.Arc(bond4[1],p4[1],t4[0],pngen.ArcType.INCOMING))
-    arcs4.add(pngen.Arc(bond4[2],p4[1],t4[0],pngen.ArcType.INCOMING))
-    arcs4.add(pngen.Arc(bond4[3],p4[1],t4[0],pngen.ArcType.INCOMING))
-    arcs4.add(pngen.Arc(bond4[4],p4[1],t4[0],pngen.ArcType.INCOMING))
+    arcs4.add(pngen.Arc(bond4[0],p4[1],t4[0],pngen.ArcType.OUTCOMING))
+    arcs4.add(pngen.Arc(bond4[1],p4[1],t4[0],pngen.ArcType.OUTCOMING))
+    arcs4.add(pngen.Arc(bond4[2],p4[1],t4[0],pngen.ArcType.OUTCOMING))
+    arcs4.add(pngen.Arc(bond4[3],p4[1],t4[0],pngen.ArcType.OUTCOMING))
+    arcs4.add(pngen.Arc(bond4[4],p4[1],t4[0],pngen.ArcType.OUTCOMING))
 
     needed_bond4 = bond4
     out_bond4 = bond4
-    generate_component(cb4,4,p4,t4,[],needed_bond4,[],out_bond4,arcs4,set([]))
+    generate_component(cb4,4,p4,t4,[],needed_bond4,[],out_bond4,arcs4,{})
 
     cb5 = gc.ComponentBuilder()
     p5 = [pngen.Place('q0',pngen.Role.INIT), pngen.Place('q1',pngen.Role.MID), pngen.Place('q2',pngen.Role.FIN)]
@@ -203,13 +221,13 @@ def main():
     arcs5.add(pngen.Arc(bond5[2],p5[2],t5[1],pngen.ArcType.OUTCOMING))
     arcs5.add(pngen.Arc(bond5[3],p5[2],t5[1],pngen.ArcType.OUTCOMING))
 
-    placement5: dict[pngen.Place,list[pngen.Token_Or_Bond]] = []
-    placement5.append((p5[1],tok5[4]))
-    placement5.append((p5[1],tok5[5]))
-    placement5.append((p5[1],tok5[6]))
-    placement5.append((p5[1],tok5[7]))
+    placement5: dict[pngen.Place,list[pngen.Token_Or_Bond]] = {}
+    placement5.setdefault(p5[1],[]).append(tok5[4])
+    placement5.setdefault(p5[1],[]).append(tok5[5])
+    placement5.setdefault(p5[1],[]).append(tok5[6])
+    placement5.setdefault(p5[1],[]).append(tok5[7])
     
-    needed_tok5 = {tok5[0],tok5[1],tok5[2]}
+    needed_tok5 = {tok5[0],tok5[1],tok5[2],tok5[3]}
     out_bond5 = bond5
     generate_component(cb5,5,p5,t5,needed_tok5,[],[],out_bond5,arcs5,placement5)
 
@@ -232,7 +250,36 @@ def main():
 
     needed_bond6 = bond6
     out_bond6 = bond6
-    generate_component(cb6,6,p6,t6,[],needed_bond6,[],out_bond6,arcs6,[])
+    generate_component(cb6,6,p6,t6,[],needed_bond6,[],out_bond6,arcs6,{})
+
+    brtrans = [pngen.Transition('bt0'),pngen.Transition('bt1'),pngen.Transition('bt2'),pngen.Transition('bt3'),
+               pngen.Transition('bt4'),pngen.Transition('bt5'),pngen.Transition('bt6'),pngen.Transition('bt7')]
+    bb0 = gb.BridgeBuilder()
+    generate_bridge(bb0,cb0.component,cb1.component,brtrans[0])
+    bb1 = gb.BridgeBuilder()
+    generate_bridge(bb1,cb1.component,cb2.component,brtrans[1])
+    bb2 = gb.BridgeBuilder()
+    generate_bridge(bb2,cb2.component,cb3.component,brtrans[2])
+    bb3 = gb.BridgeBuilder()
+    generate_bridge(bb3,cb3.component,cb4.component,brtrans[3])
+    bb4 = gb.BridgeBuilder()
+    generate_bridge(bb4,cb0.component,cb5.component,brtrans[4])
+    bb5 = gb.BridgeBuilder()
+    generate_bridge(bb5,cb5.component,cb6.component,brtrans[5])
+    bb6 = gb.BridgeBuilder()
+    generate_bridge(bb6,cb5.component,cb3.component,brtrans[6])
+    bb7 = gb.BridgeBuilder()
+    generate_bridge(bb7,cb6.component,cb3.component,brtrans[7])
+
+    all_bridges = {bb0.bridge,bb1.bridge,bb2.bridge,bb3.bridge,bb4.bridge,
+                    bb5.bridge,bb6.bridge,bb7.bridge}
+    all_comp = {cb0.component,cb1.component,cb2.component,cb3.component,cb4.component,cb5.component,cb6.component}
+
+    ptb = pngen.Petri_Net_Builder()
+    generate_petri_net(ptb,filename,all_bridges,all_comp,tot_transitions,max_degree)
+
+
+    
 
 if __name__ == '__main__':
     main()
