@@ -42,6 +42,9 @@ class Component:
         
         for a in self.arcs:
             print(f'arc({a.place.name},{a.trans.name},{a.label},{a.type}).')
+    
+    def set_placement(self,place,tokens_bonds):
+        self.placements[place] = tokens_bonds
           
                           
 

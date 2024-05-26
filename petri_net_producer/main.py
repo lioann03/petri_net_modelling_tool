@@ -63,8 +63,8 @@ def main():
     tot_transitions, = args['transitions']
     max_degree, = args['max_degree']
 
-    if tot_transitions < max_degree:
-       print('total transitions must not be less than max degree')
+    if tot_transitions < 2*max_degree:
+       print('total transitions must not be less than max degree x 2')
        return None
     
     if tot_transitions < 1 or max_degree < 1:
@@ -134,13 +134,13 @@ def main():
     arcs2.add(pngen.Arc(tok2[1],p2[2],t2[0],pngen.ArcType.OUTCOMING))
 
     placement2: dict[pngen.Place,list[pngen.Token_Or_Bond]] = {}
-    placement2.setdefault(p2[1],[]).append(tok0[0])
-    placement2.setdefault(p2[1],[]).append(tok0[1])
+    placement2.setdefault(p2[1],[]).append(tok2[0])
+    placement2.setdefault(p2[1],[]).append(tok2[1])
 
-    needed_tok2 = bond2
+    needed_bond2 = bond2
     out_tok2 = tok2
     out_bond2 = bond2
-    generate_component(cb2,2,p2,t2,needed_tok2,[],out_tok2,out_bond2,arcs2,placement2)
+    generate_component(cb2,2,p2,t2,[],needed_bond2,out_tok2,out_bond2,arcs2,placement2)
     #cb2.component.print_component()
 
     cb3 = gc.ComponentBuilder()

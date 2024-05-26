@@ -48,7 +48,7 @@ Comp_Or_Brid = Union[comp.Component,brid.Bridge]
 
 class Sequence(NamedTuple):
     comp_brid: List[Tuple[Comp_Or_Brid,int]] = []
-    tokens: List[Token] = []
+    tokens: List[Token_Or_Bond] = []
     init_tokens: List[Tuple[Token,int]] = []
     init_bonds: List[Tuple[Bond,int]] = []
 
@@ -66,7 +66,7 @@ class PetriNet:
   def __init__(self):
     #self.tokens: list[str] = []
     #self.bonds: set[Bond] = set([]) 
-    self.placement: dict[Place,list[Token_Or_Bond]] = {}
+    self.init_placement: dict[Place,list[Token_Or_Bond]] = {}
     self.total_trans: int
     self.transitions_used: int = 0
     self.max_degree: int
@@ -116,11 +116,13 @@ class Petri_Net_Builder():
       return ret
       
     def create_init_comp(self): 
-      init_place = Place('init_place',Role.INIT)
+      init_place = set()
+      init_place.add(Place('init_place',Role.INIT))
       comp_builder = comp.ComponentBuilder()
       comp_builder.set_name('init')
       comp_builder.set_places(init_place)
       self.petri_net.init_comp = comp_builder.component
+      comp_builder.set_transitions([])
 
       #TODO: place init tokens to init comp
       #for i in range(self.petri_net.max_degree):
@@ -131,7 +133,6 @@ class Petri_Net_Builder():
       #  for t in c[0].tokens:
       #    pass
 
-
     def create_init_bridges(self):
       for i in range(self.petri_net.max_degree):
         bridgeb = brid.BridgeBuilder()
@@ -140,7 +141,7 @@ class Petri_Net_Builder():
         c = self.petri_net.seq[i].comp_brid[0]
         bridgeb.set_start_component(self.petri_net.init_comp)
         bridgeb.set_end_component(c[0])
-        bridgeb.set_transition(Transition(f'initbrid{i}'))
+        bridgeb.set_transition(Transition(f'inittrans{i}'))
         bridgeb.set_arcs()
         self.petri_net.init_brid.append(bridgeb.bridge)
       for b in self.petri_net.init_brid:
@@ -156,15 +157,16 @@ class Petri_Net_Builder():
            starting_comp.append(c.comp)
       return starting_comp
     
-    def set_init_seq_tokens(self):
+    ###########################
+    def set_seq_init_tokens(self):
       for i in range(self.petri_net.max_degree):
         s = self.petri_net.seq[i]
         assert type(s.comp_brid[0][0]) == comp.Component
         for t in s.comp_brid[0][0].needed_tokens:
-          s.init_tokens.append((t,0))
+          s.init_tokens.append((t,i))
         for b in s.comp_brid[0][0].needed_bonds:
-          s.init_bonds.append((b,0))
-
+          s.init_bonds.append((b,i))
+        
     def set_first_comp_in_seq(self):
       starting_comp = self._possible_starting_comp()
       for i in range(self.petri_net.max_degree):
@@ -212,7 +214,6 @@ class Petri_Net_Builder():
           self.petri_net.transitions_used += c.brid.total_trans
           return True
       return False
-      #TODO:???
 
     def add_extra_bridges(self):
       remaining = self.petri_net.total_trans - self.petri_net.transitions_used
@@ -229,6 +230,7 @@ class Petri_Net_Builder():
         new_bridge.set_end_component(rand_comp[0])
         new_bridge.set_transition(Transition(f'extra{i}'))
         rand_seq.comp_brid.append((new_bridge.bridge,0))
+        #rand_seq.comp_brid.append((self.petri_net.init_comp,0))
         self.petri_net.bridges.append(CountedBrid(new_bridge.bridge,0))
 
     # the first component of each sequence is always c0.
@@ -239,7 +241,8 @@ class Petri_Net_Builder():
       self.set_first_comp_in_seq()
       self.create_init_comp()
       self.create_init_bridges()
-      self.set_init_seq_tokens()
+      self.set_seq_init_tokens()
+      
 
       proceed = True
       while self.petri_net.transitions_used < self.petri_net.total_trans and proceed:  
@@ -248,20 +251,68 @@ class Petri_Net_Builder():
             break
           proceed = self.add_comp_in_seq(s)
    
-      #TODO: Check why the loop stopped
       if self.petri_net.transitions_used < self.petri_net.total_trans and not proceed:
-        #TODO: add extra bridges
-        pass
+        self.add_extra_bridges()
       self.print_petri_net()
-    
-    def print_petri_net(self):
-      i=0
+
+    def print_transitions(self):
+      for seq in self.petri_net.seq:
+        for comp_brid in seq.comp_brid:
+          if type(comp_brid[0]) == comp.Component:
+            for trans in comp_brid[0].transitions:
+              print("trans({}{}).".format(trans.name,comp_brid[1]))
+          if type(comp_brid[0]) == brid.Bridge:
+            print("trans({}{}).".format(comp_brid[0].trans.name,comp_brid[1]))
+      for btrans in self.petri_net.init_brid:
+        print("trans({}).".format(btrans.trans.name))
+
+    def print_places(self):
+      for seq in self.petri_net.seq:
+        for comp_brid in seq.comp_brid:
+          if type(comp_brid[0]) == comp.Component:
+            for pl in comp_brid[0].places:
+              print("place({}{}).".format(pl.name,comp_brid[1]))
+      for p in self.petri_net.init_comp.places:
+        print("place({}).".format(p.name)) 
+
+    def print_placement(self):
+      init_tok:List[Tuple[Token, int]] = []
+      init_bonds:List[Tuple[Bond, int]] = []
+      init_comp = self.petri_net.init_comp
       for s in self.petri_net.seq:
-        for cb in s.comp_brid:
-          if type(cb[0]) == comp.Component:
-            print(f'{i},{cb[0].name}')
-        i+=1
+        for t in s.init_tokens:
+          init_tok.append(t)
+        for b in s.init_bonds:
+          init_bonds.append(b)
+
+      for t in init_tok:
+        assert len(init_comp.places) == 1, 'more than one init places'
+        for place in init_comp.places:
+          print("placeholds({},{}{},0).".format(place.name,
+                                                t[0].name,t[1])) 
+      for b in init_bonds:
+        assert len(init_comp.places) == 1, 'more than one init places'
+        for place in init_comp.places:
+          print("placeholdsbond({},{}{},{}{},0).".format(place.name,b[0][0].name,b[1],b[0][1].name,b[1]))
       
+      for i in range(self.petri_net.max_degree):
+        s = self.petri_net.seq[i]
+        for comp_brid in s.comp_brid:
+          if type(comp_brid[0]) == comp.Component:
+            for place in comp_brid[0].placements:
+              for tok_bond in comp_brid[0].placements[place]:
+                if type(tok_bond) == Token:
+                  print('placeholds({},{}{},0)'.format(place.name,tok_bond.name,i))
+                if type(tok_bond) == Bond:
+                  print('placeholdsbond({},{}{},{}{},0)'.format(place.name,tok_bond[0].name,i,tok_bond[1].name,i))
+          
+        
+
+    def print_petri_net(self):
+      self.print_transitions()
+      self.print_places()
+      self.print_placement()
+        
 
     def reset(self):
       self.petri_net = PetriNet()
