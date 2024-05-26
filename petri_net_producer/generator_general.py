@@ -73,6 +73,7 @@ class PetriNet:
     #self.initial_place: Place
     self.components: List[CountedComp] = []
     self.bridges: List[CountedBrid] = []
+    self.extra_bridges: List[Tuple[CountedBrid,int,int]] = []
     self.seq: list[Sequence] = [] 
     self.init_comp: comp.Component
     self.init_brid: list[brid.Bridge] = []
@@ -138,11 +139,11 @@ class Petri_Net_Builder():
         bridgeb = brid.BridgeBuilder()
         #print(self.petri_net.seq[i].comp_brid[0][0])
         assert type(self.petri_net.seq[i].comp_brid[0][0]) == comp.Component
-        c = self.petri_net.seq[i].comp_brid[0]
+        c = self.petri_net.seq[i].comp_brid[0][0]
         bridgeb.set_start_component(self.petri_net.init_comp)
-        bridgeb.set_end_component(c[0])
+        bridgeb.set_end_component(c)
         bridgeb.set_transition(Transition(f'inittrans{i}'))
-        bridgeb.set_arcs()
+        bridgeb.set_arcs_init()
         self.petri_net.init_brid.append(bridgeb.bridge)
       for b in self.petri_net.init_brid:
         self.petri_net.transitions_used += b.total_trans
@@ -226,10 +227,12 @@ class Petri_Net_Builder():
           if type(rand_comp[0]) == comp.Component:
             end = True
         new_bridge = brid.BridgeBuilder()
-        new_bridge.set_start_component(self.petri_net.init_comp)
-        new_bridge.set_end_component(rand_comp[0])
+        new_bridge.set_start_component(rand_comp[0])
+        new_bridge.set_end_component(self.petri_net.init_comp)
         new_bridge.set_transition(Transition(f'extra{i}'))
-        rand_seq.comp_brid.append((new_bridge.bridge,0))
+        new_bridge.set_arcs_extra()
+        self.petri_net.extra_bridges.append((CountedBrid(new_bridge.bridge,0),i,rand_comp[1]))
+        #.comp_brid.append((new_bridge.bridge,0))
         #rand_seq.comp_brid.append((self.petri_net.init_comp,0))
         self.petri_net.bridges.append(CountedBrid(new_bridge.bridge,0))
 
@@ -265,6 +268,8 @@ class Petri_Net_Builder():
             print("trans({}{}).".format(comp_brid[0].trans.name,comp_brid[1]))
       for btrans in self.petri_net.init_brid:
         print("trans({}).".format(btrans.trans.name))
+      for extra in self.petri_net.extra_bridges:
+        print("trans({}).".format(extra[0].brid.trans.name))
 
     def print_places(self):
       for seq in self.petri_net.seq:
@@ -302,16 +307,127 @@ class Petri_Net_Builder():
             for place in comp_brid[0].placements:
               for tok_bond in comp_brid[0].placements[place]:
                 if type(tok_bond) == Token:
-                  print('placeholds({},{}{},0)'.format(place.name,tok_bond.name,i))
+                  print("placeholds({},{}{},0).".format(place.name,tok_bond.name,i))
                 if type(tok_bond) == Bond:
-                  print('placeholdsbond({},{}{},{}{},0)'.format(place.name,tok_bond[0].name,i,tok_bond[1].name,i))
+                  print("placeholdsbond({},{}{},{}{},0).".format(place.name,tok_bond[0].name,i,tok_bond[1].name,i))
           
+    def print_comp_arcs(self,i,cb):
+      for arc in cb[0].arcs:
+        if arc.type == ArcType.INCOMING:
+          if type(arc.label) == Token:
+            print("incoming({}{},{}{},{}{}).".format(arc.place.name,cb[1],arc.trans.name,cb[1],arc.label.name,i))
+          elif type(arc.label) == tuple:
+            print("incomingbond({}{},{}{},{}{},{}{}).".format(arc.place.name,cb[1],arc.trans.name,cb[1],
+                                                                    arc.label[0].name,i,arc.label[1].name,i))
+        elif arc.type == ArcType.OUTCOMING:
+          if type(arc.label) == Token: 
+            print("outcoming({}{},{}{},{}{}).".format(arc.trans.name,cb[1],arc.place.name,cb[1],arc.label.name,i))
+          elif type(arc.label) == tuple:
+            print("outcomingbond({}{},{}{},{}{},{}{}).".format(arc.trans.name,cb[1],arc.place.name,cb[1],arc.label[0].name,i,arc.label[1].name,i))
+      
+    def print_brid_arcs(self,i:int,j:int):
+      current_brid = self.petri_net.seq[i].comp_brid[j]
+      assert j>0
+      next = None
+      prev = self.petri_net.seq[i].comp_brid[j-1]
+      assert type(prev[0]) == comp.Component
+      if j < len(self.petri_net.seq[i]) - 1:
+        next = self.petri_net.seq[i].comp_brid[j+1]
         
+      for arc in current_brid[0].arcs:
+        if arc.type == ArcType.INCOMING:
+          if type(arc.label) == Token:
+            print("incoming({}{},{}{},{}{}).".format(prev[0].get_final_place().name,prev[1],arc.trans.name,current_brid[1],arc.label.name,i))
+          elif type(arc.label) == tuple:
+            print("incomingbond({}{},{}{},{}{},{}{}).".format(prev[0].get_final_place().name,prev[1],arc.trans.name,current_brid[1],
+                                                                    arc.label[0].name,i,arc.label[1].name,i))
+        elif arc.type == ArcType.OUTCOMING and type(next) != None:
+          assert type(next) == Tuple[Comp_Or_Brid,int]
+          assert type(next[0]) == comp.Component
+          if type(arc.label) == Token: 
+            print("outcoming({}{},{}{},{}{}).".format(arc.trans.name,current_brid[1],next[0].get_init_place().name,next[1],arc.label.name,i))
+          elif type(arc.label) == tuple:
+              print("outcomingbond({}{},{}{},{}{},{}{}).".format(arc.trans.name,current_brid[1],next[0].get_init_place().name,next[1],arc.label[0].name,i,arc.label[1].name,i))
+
+    def print_init_bridges(self):
+      for i in range(self.petri_net.max_degree):
+        b = self.petri_net.init_brid[i]
+        s = self.petri_net.seq[i]
+        assert type(s.comp_brid[0][0]) == comp.Component
+        for arc in b.arcs:
+          if arc.type == ArcType.INCOMING:
+            if type(arc.label) == Token:
+              print("incoming({},{},{}{}).".format(self.init_comp_place_name(),b.trans.name,
+                                                     arc.label.name,i))
+            elif type(arc.label) == tuple:
+              print("incomingbond({},{},{}{},{}{}).".format(self.init_comp_place_name(),b.trans.name,
+                                                     arc.label[0].name,i,arc.label[1].name,i))
+          elif arc.type == ArcType.OUTCOMING:
+            if type(arc.label) == Token: 
+              print("outcoming({},{}{},{}{}).".format(b.trans.name,s.comp_brid[0][0].get_init_place().name,s.comp_brid[0][1],
+                                                     arc.label.name,i))
+            elif type(arc.label) == tuple:
+              print("outcomingbond({},{}{},{}{},{}{}).".format(b.trans.name,s.comp_brid[0][0].get_init_place().name,s.comp_brid[0][1],
+                                                   arc.label[0].name,i,arc.label[1].name,i))
+    def print_extra_bridges_arcs(self):
+      for i in range(len(self.petri_net.extra_bridges)):
+        br = self.petri_net.extra_bridges[i]
+        for arc in br[0].brid.arcs:
+          if arc.type == ArcType.INCOMING:
+            if type(arc.label) == Token:
+              print("incoming({}{},{},{}{}).".format(arc.place.name,br[2],arc.trans.name,arc.label.name,br[1]))                                        
+            elif type(arc.label) == tuple:
+              print("incomingbond({}{},{},{}{},{}{}).".format(arc.place.name,br[2],arc.trans.name,
+                                                              arc.label[0].name,br[1],arc.label[1].name,br[1]))
+          elif arc.type == ArcType.OUTCOMING:
+            if type(arc.label) == Token: 
+              print("outcoming({},{},{}{}).".format(arc.trans.name,arc.place.name,arc.label.name,br[1]))
+            elif type(arc.label) == tuple:
+              print("outcomingbond({},{},{}{},{}{}).".format(arc.trans.name,arc.place.name,
+                                                               arc.label[0].name,br[1],arc.label[1].name,br[1]))
+
+    def print_arcs(self):
+      self.print_init_bridges()
+      # print arcs of the initial bridges
+      for i in range(self.petri_net.max_degree):
+        s = self.petri_net.seq[i]
+        for j in range(len(s.comp_brid)):
+          cb = s.comp_brid[j]
+          if type(cb[0]) == comp.Component:
+            self.print_comp_arcs(i,cb) 
+          if type(cb[1]) == brid.Bridge:
+            self.print_brid_arcs(i,j)
+      if len(self.petri_net.extra_bridges) > 0:
+        self.print_extra_bridges_arcs()
+
+    def init_comp_place_name(self):
+      for p in self.petri_net.init_comp.places:
+        return p.name
+
+    def print_tokens(self):
+      for i in range(self.petri_net.max_degree):
+        s = self.petri_net.seq[i]
+        for needed_tok in s.init_tokens:
+          print("token({}{}).".format(needed_tok[0].name,needed_tok[1]))
+        for needed_b in s.init_bonds:
+          print("token({}{}).".format(needed_b[0][0].name,needed_b[1]))
+          print("token({}{}).".format(needed_b[0][1].name,needed_b[1]))
+        for com in s.comp_brid[0]:
+          if type(com) == comp.Component:
+            for tok in com.tokens:
+             assert type(tok) == Token
+             print("token({}{}).".format(tok.name,i))
+
 
     def print_petri_net(self):
+      #for s in self.petri_net.seq:
+      #  assert type(s.comp_brid[0][0]) == comp.Component
+      #  print(s.comp_brid[0][0].name)
       self.print_transitions()
+      self.print_tokens()
       self.print_places()
       self.print_placement()
+      self.print_arcs()
         
 
     def reset(self):

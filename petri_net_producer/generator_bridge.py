@@ -40,9 +40,39 @@ class BridgeBuilder:
         for tok in comp_end.needed_tokens:
             self.bridge.arcs.add(gg.Arc(tok,comp_end.get_init_place(),self.bridge.trans,gg.ArcType.OUTCOMING))
         
-        for bond in comp_start.needed_bonds:
+        for bond in comp_end.needed_bonds:
            self.bridge.arcs.add(gg.Arc(bond,comp_end.get_init_place(),self.bridge.trans,gg.ArcType.OUTCOMING))
 
+    def set_arcs_init(self):
+        comp_start = self.bridge.start_component
+        comp_end = self.bridge.end_component
+        for p in comp_start.places:
+            init_place = p
+       
+        for tok in comp_end.needed_tokens:
+            self.bridge.arcs.add(gg.Arc(tok,init_place,self.bridge.trans,gg.ArcType.INCOMING))
+        
+        for bond in comp_end.needed_bonds:
+            self.bridge.arcs.add(gg.Arc(bond,init_place,self.bridge.trans,gg.ArcType.INCOMING))
 
+        for tok in comp_end.needed_tokens:
+            self.bridge.arcs.add(gg.Arc(tok,comp_end.get_init_place(),self.bridge.trans,gg.ArcType.OUTCOMING))
+        
+        for bond in comp_end.needed_bonds:
+           self.bridge.arcs.add(gg.Arc(bond,comp_end.get_init_place(),self.bridge.trans,gg.ArcType.OUTCOMING))
 
-    
+    def set_arcs_extra(self):
+        comp_start = self.bridge.start_component
+        comp_end = self.bridge.end_component
+
+        for tok in comp_start.out_tokens:
+            self.bridge.arcs.add(gg.Arc(tok,comp_start.get_final_place(),self.bridge.trans,gg.ArcType.INCOMING))
+        
+        for bond in comp_start.out_bonds:
+           self.bridge.arcs.add(gg.Arc(bond,comp_start.get_final_place(),self.bridge.trans,gg.ArcType.INCOMING))
+
+        for tok in comp_start.out_tokens:
+            self.bridge.arcs.add(gg.Arc(tok,comp_end.get_init_place(),self.bridge.trans,gg.ArcType.OUTCOMING))
+        
+        for bond in comp_start.out_bonds:
+           self.bridge.arcs.add(gg.Arc(bond,comp_end.get_init_place(),self.bridge.trans,gg.ArcType.OUTCOMING))
