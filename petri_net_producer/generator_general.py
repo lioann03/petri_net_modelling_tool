@@ -421,10 +421,10 @@ class Petri_Net_Builder():
         for arc in extra[0].brid.arcs:
             tok_bond = arc.label
             if type(tok_bond) == Token:
-              print('placeholds({},{}{},ts-1).'.format(self.init_comp_place_name(),tok_bond.name,extra[1]))
+              print('placeholds({},{}{},ts).'.format(self.init_comp_place_name(),tok_bond.name,extra[1]))
             else:
               assert type(tok_bond) == tuple
-              print(':-not placeholdsbond({},{}{},{}{},ts-1).'.format(self.init_comp_place_name(),
+              print('placeholdsbond({},{}{},{}{},ts).'.format(self.init_comp_place_name(),
                                                                 tok_bond[0].name,extra[1],tok_bond[1].name,extra[1]))
         return None
       
@@ -436,10 +436,10 @@ class Petri_Net_Builder():
       assert type(last_component) == comp.Component, 'last item of a sequence is not a component'
       last_place = last_component.get_final_place()
       for tok in last_component.out_tokens:
-        print('placeholds({}{},{}{},ts-1).'
+        print('placeholds({}{},{}{},ts).'
               .format(last_place.name,last_index,tok.name,i))
       for bond in last_component.out_bonds:
-        print('placeholdsbond({}{},{}{},{}{},ts-1).'
+        print('placeholdsbond({}{},{}{},{}{},ts).'
               .format(last_place.name,last_index,bond[0].name,i,bond[1].name,i))
       return
 
