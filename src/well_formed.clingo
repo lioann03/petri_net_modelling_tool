@@ -25,9 +25,9 @@ notwellf3(T) :- outcomingbond(T,TP1,Q1,Q2), outcomingbond(T,TP2,Q1,Q3), TP1!=TP2
 wellf3(T) :- trans(T), not notwellf3(T).
 
 wellf(T) :- trans(T), wellf1(T), wellf2(T), wellf3(T).
-%:- not wellf(T), trans(T).
+:- not wellf(T), trans(T).
 
-%#show wellf/1.
+#show wellf/1.
 %#show notwellf1_trans/1.
 %#show notwellf2_trans/1.
 %#show notwellf3/1.

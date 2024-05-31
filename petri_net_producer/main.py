@@ -12,7 +12,7 @@ DEF_DEG = 5
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Creates a Petri Net')
-    parser.add_argument('filename')
+    #parser.add_argument('filename')
     parser.add_argument('--transitions', type=int,nargs=1,help='Total Number of Transitions',default=DEF_TRANS)
     parser.add_argument('--max_degree', type=int,nargs=1,help='Max Degree',default=DEF_DEG)
     return vars(parser.parse_args())
@@ -50,7 +50,7 @@ def generate_bridge(bb,c1,c2,t):
    bb.set_transition(t)
    bb.set_arcs()
 
-def generate_petri_net(pnb,file,bridges,components,total_trans,max_deg):
+def generate_petri_net(pnb,bridges,components,total_trans,max_deg):
    pnb.set_bridges(bridges)
    pnb.set_components(components)
    pnb.set_total_trans(total_trans)
@@ -59,7 +59,7 @@ def generate_petri_net(pnb,file,bridges,components,total_trans,max_deg):
 
 def main():
     args = parse_args()
-    filename = args['filename']
+    #filename = args['filename']
     tot_transitions, = args['transitions']
     max_degree, = args['max_degree']
 
@@ -276,7 +276,7 @@ def main():
     all_comp = {cb0.component,cb1.component,cb2.component,cb3.component,cb4.component,cb5.component,cb6.component}
 
     ptb = pngen.Petri_Net_Builder()
-    generate_petri_net(ptb,filename,all_bridges,all_comp,tot_transitions,max_degree)
+    generate_petri_net(ptb,all_bridges,all_comp,tot_transitions,max_degree)
 
 
     

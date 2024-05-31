@@ -63,17 +63,14 @@ class CountedBrid():
   freq:int
 
 class PetriNet:
-  def __init__(self):
-    #self.tokens: list[str] = []
-    #self.bonds: set[Bond] = set([]) 
+  def __init__(self): 
     self.init_placement: dict[Place,list[Token_Or_Bond]] = {}
     self.total_trans: int
     self.transitions_used: int = 0
     self.max_degree: int
-    #self.initial_place: Place
     self.components: List[CountedComp] = []
     self.bridges: List[CountedBrid] = []
-    self.extra_bridges: List[Tuple[CountedBrid,int,int]] = []
+    self.extra_bridges: List[Tuple[CountedBrid,int,int]] = [] # CounterBrid, # of sequence, # of component
     self.seq: list[Sequence] = [] 
     self.init_comp: comp.Component
     self.init_brid: list[brid.Bridge] = []
@@ -418,6 +415,34 @@ class Petri_Net_Builder():
              assert type(tok) == Token
              print("token({}{}).".format(tok.name,i))
 
+    def print_goal_state(self):
+      if len(self.petri_net.extra_bridges) > 0:
+        extra = random.choice(self.petri_net.extra_bridges)
+        for arc in extra[0].brid.arcs:
+            tok_bond = arc.label
+            if type(tok_bond) == Token:
+              print('placeholds({},{}{},ts-1).'.format(self.init_comp_place_name(),tok_bond.name,extra[1]))
+            else:
+              assert type(tok_bond) == tuple
+              print(':-not placeholdsbond({},{}{},{}{},ts-1).'.format(self.init_comp_place_name(),
+                                                                tok_bond[0].name,extra[1],tok_bond[1].name,extra[1]))
+        return None
+      
+      #for i in range(self.petri_net.max_degree):
+      i = random.randint(0,self.petri_net.max_degree-1)
+      s = self.petri_net.seq[i]
+      last_component = s.comp_brid[len(s.comp_brid)-1][0]
+      last_index = s.comp_brid[len(s.comp_brid)-1][1]
+      assert type(last_component) == comp.Component, 'last item of a sequence is not a component'
+      last_place = last_component.get_final_place()
+      for tok in last_component.out_tokens:
+        print('placeholds({}{},{}{},ts-1).'
+              .format(last_place.name,last_index,tok.name,i))
+      for bond in last_component.out_bonds:
+        print('placeholdsbond({}{},{}{},{}{},ts-1).'
+              .format(last_place.name,last_index,bond[0].name,i,bond[1].name,i))
+      return
+
 
     def print_petri_net(self):
       #for s in self.petri_net.seq:
@@ -428,8 +453,8 @@ class Petri_Net_Builder():
       self.print_places()
       self.print_placement()
       self.print_arcs()
+      self.print_goal_state()
         
-
     def reset(self):
       self.petri_net = PetriNet()
 

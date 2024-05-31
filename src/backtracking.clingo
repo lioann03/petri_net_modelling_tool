@@ -85,9 +85,9 @@ placeholdsbond(P,Q1,Q2,TS) :- keepbond(Q1,Q2,TS), placeholdsbond(P,Q1,Q2,TS-1), 
 placeholds(P,Q,TS) :- btfire(T,TS-1), not bonded(P,Q,TS), incoming(P,T,Q), timestep(TS), place(P), token(Q), trans(T).
 
 placeholdsbond(P,Q1,Q2,TS) :- btfire(T,TS-1), not breaks(Q1,Q2,TS), onincoming(P,T,Q1), placeholdsbond(TP,Q1,Q2,TS-1), P!=TP,
-                            trans(T), place(P), place(TP), token(Q1), token(Q2), timestep(TS).
+                              trans(T), place(P), place(TP), token(Q1), token(Q2), timestep(TS).
 placeholdsbond(P,Q1,Q2,TS) :- btfire(T,TS-1), not breaks(Q1,Q2,TS), onincoming(P,T,Q2), placeholdsbond(TP,Q1,Q2,TS-1), P!=TP,
-                            trans(T), place(P), place(TP), token(Q1), token(Q2), timestep(TS).
+                              trans(T), place(P), place(TP), token(Q1), token(Q2), timestep(TS).
 placeholdsbond(P,Q1,Q2,TS) :- btfire(T,TS-1), not breaks(Q1,Q2,TS), onincoming(P,T,Q3), placeholdsconnection(TP,Q1,Q3,TS-1),
                               placeholdsbond(TP,Q1,Q2,TS-1), not breaks(Q1,Q3,TS), not breaks(Q3,Q1,TS), 
                               not breaks(Q2,Q3,TS), not breaks(Q3,Q2,TS), TP!=P, trans(T), place(P), place(TP), 
